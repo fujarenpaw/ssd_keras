@@ -11,7 +11,7 @@ import numpy as np
 from random import shuffle
 from scipy.misc import imread, imresize
 from timeit import default_timer as timer
-
+from xml.dom.minidom import parseString
 import sys
 sys.path.append("..")
 from ssd_utils import BBoxUtility
@@ -77,6 +77,7 @@ class VideoTest(object):
                      are not visualized.
                     
         """
+        outimg_files  = []
     
         vid = cv2.VideoCapture(video_path)
         if not vid.isOpened():
@@ -84,8 +85,10 @@ class VideoTest(object):
             "trying to open a webcam, make sure you video_path is an integer!"))
         
         # Compute aspect ratio of video     
-        vidw = vid.get(cv2.cv.CV_CAP_PROP_FRAME_WIDTH)
-        vidh = vid.get(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT)
+        # vidw = vid.get(cv2.cv.CV_CAP_PROP_FRAME_WIDTH)
+        # vidh = vid.get(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT)
+        vidw = vid.get(cv2.CAP_PROP_FRAME_WIDTH)
+        vidh = vid.get(cv2.CAP_PROP_FRAME_HEIGHT)
         vidar = vidw/vidh
         
         # Skip frames until reaching start_frame
@@ -96,10 +99,24 @@ class VideoTest(object):
         curr_fps = 0
         fps = "FPS: ??"
         prev_time = timer()
-            
+
+        frameCnt = 0
+        pictureCnt = 0
         while True:
+            frameCnt += 1
             retval, orig_image = vid.read()
             if not retval:
+                # 動画作成
+                # IMG_SIZE = 256  # 画像サイズ
+                # BLOCK_SIZE = 64  # 黒ブロックサイズ
+                # FRAME_RATE = 30
+                # fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
+                # video = cv2.VideoWriter(r'C:\Users\hoge\Documents\GitHub\ssd_keras\testing_utils\donkeyInc3.mp4', fourcc, FRAME_RATE, (int(self.input_shape[0]*vidar), self.input_shape[1]))
+                # for img_file in outimg_files:
+                #     # img = cv2.imread(img_file)
+                #     video.write(img_file)
+
+                video.release()
                 print("Done!")
                 return
                 
@@ -119,11 +136,12 @@ class VideoTest(object):
             
             y = self.model.predict(x)
             
-            
-            # This line creates a new TensorFlow device every time. Is there a 
+            # This line creates a new TensorFlow device every time. Is there a
             # way to avoid that?
             results = self.bbox_util.detection_out(y)
-            
+            detectCnt = 0
+            posAry = []
+
             if len(results) > 0 and len(results[0]) > 0:
                 # Interpret output, only one frame is used 
                 det_label = results[0][:, 0]
@@ -148,17 +166,26 @@ class VideoTest(object):
                     xmax = int(round(top_xmax[i] * to_draw.shape[1]))
                     ymax = int(round(top_ymax[i] * to_draw.shape[0]))
 
+                    detectCnt += 1
+                    posAry.append([xmin, ymin, xmax, ymax])
+
                     # Draw the box on top of the to_draw image
                     class_num = int(top_label_indices[i])
-                    cv2.rectangle(to_draw, (xmin, ymin), (xmax, ymax), 
-                                  self.class_colors[class_num], 2)
-                    text = self.class_names[class_num] + " " + ('%.2f' % top_conf[i])
 
-                    text_top = (xmin, ymin-10)
-                    text_bot = (xmin + 80, ymin + 5)
-                    text_pos = (xmin + 5, ymin)
-                    cv2.rectangle(to_draw, text_top, text_bot, self.class_colors[class_num], -1)
-                    cv2.putText(to_draw, text, text_pos, cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0,0,0), 1)
+                    # cv2.rectangle(to_draw, (xmin, ymin), (xmax, ymax),
+                    #               self.class_colors[class_num], 2)
+
+                    # 矩形描画
+                    # text = self.class_names[class_num] + " " + ('%.2f' % top_conf[i])
+                    # text_top = (xmin, ymin-10)
+                    # text_bot = (xmin + 80, ymin + 5)
+                    # text_pos = (xmin + 5, ymin)
+                    # cv2.rectangle(to_draw, text_top, text_bot, self.class_colors[class_num], -1)
+                    # cv2.putText(to_draw, text, text_pos, cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0,0,0), 1)
+
+                if detectCnt == 2 and frameCnt >= 100:
+                    pictureCnt += 1
+                    pass
             
             # Calculate FPS
             # This computes FPS for everything, not just the model's execution 
@@ -176,8 +203,111 @@ class VideoTest(object):
             # Draw FPS in top left corner
             cv2.rectangle(to_draw, (0,0), (50, 17), (255,255,255), -1)
             cv2.putText(to_draw, fps, (3,10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0,0,0), 1)
-            
+
+            outimg_files.append(to_draw)
             cv2.imshow("SSD result", to_draw)
             cv2.waitKey(10)
-            
-        
+
+
+def createXml(posAry, fileName, width, height):
+    xml_template = '<?xml version="1.0" encoding="UTF-8"?>\
+    <annotation>\
+      <folder>XXX</folder>\
+      <source>\
+        <database>XXX</database>\
+        <annotation>XXX</annotation>\
+        <image>XXX</image>\
+        <flickrid>XXX</flickrid>\
+      </source>\
+      <owner>\
+        <flickrid>XXX</flickrid>\
+        <name>?</name>\
+      </owner>\
+      <segmented>0</segmented>\
+    </annotation>'
+
+    dom = parseString(xml_template)
+
+    # channelノードを取得
+    root = dom.getElementsByTagName("annotation")[0]
+
+    # サブノードの生成
+    subnode = dom.createElement('filename')
+    subnode.appendChild(dom.createTextNode(str(fileName) + ".jpg"))
+    # itemノードにsubnodeノードを追加
+    root.appendChild(subnode)
+
+    size = dom.createElement('size')
+
+    subnode = dom.createElement('width')
+    subnode.appendChild(dom.createTextNode(str(width)))
+    # itemノードにsubnodeノードを追加
+    size.appendChild(subnode)
+
+    subnode = dom.createElement('height')
+    subnode.appendChild(dom.createTextNode(str(height)))
+    # itemノードにsubnodeノードを追加
+    size.appendChild(subnode)
+
+    subnode = dom.createElement('depth')
+    subnode.appendChild(dom.createTextNode("1"))
+    # itemノードにsubnodeノードを追加
+    size.appendChild(subnode)
+
+    for pos in posAry:
+        # itemノードを生成
+        item = dom.createElement('object')
+        # channelノードに追加
+        root.appendChild(item)
+
+        # サブノードの生成
+        subnode = dom.createElement('name')
+        subnode.appendChild(dom.createTextNode("character"))
+        # itemノードにsubnodeノードを追加
+        item.appendChild(subnode)
+
+        subnode = dom.createElement('pose')
+        subnode.appendChild(dom.createTextNode("Unspecified"))
+        # itemノードにsubnodeノードを追加
+        item.appendChild(subnode)
+
+        subnode = dom.createElement('truncated')
+        subnode.appendChild(dom.createTextNode("0"))
+        # itemノードにsubnodeノードを追加
+        item.appendChild(subnode)
+
+        subnode = dom.createElement('difficult')
+        subnode.appendChild(dom.createTextNode("1"))
+        # itemノードにsubnodeノードを追加
+        item.appendChild(subnode)
+
+        bndbox = dom.createElement('bndbox')
+
+        subnode = dom.createElement('xmin')
+        subnode.appendChild(dom.createTextNode(str(pos[0])))
+        # itemノードにsubnodeノードを追加
+        bndbox.appendChild(subnode)
+
+        subnode = dom.createElement('ymin')
+        subnode.appendChild(dom.createTextNode(str(pos[1])))
+        # itemノードにsubnodeノードを追加
+        bndbox.appendChild(subnode)
+
+        subnode = dom.createElement('xmax')
+        subnode.appendChild(dom.createTextNode(str(pos[2])))
+        # itemノードにsubnodeノードを追加
+        bndbox.appendChild(subnode)
+
+        subnode = dom.createElement('xmax')
+        subnode.appendChild(dom.createTextNode(str(pos[3])))
+        # itemノードにsubnodeノードを追加
+        bndbox.appendChild(subnode)
+
+        # itemノードにsubnodeノードを追加
+        item.appendChild(bndbox)
+
+    # domをxmlに変換して整形
+    print(dom.toprettyxml())
+
+    with open(r"autoOutput\xml\\" + str(fileName) + '.xml', mode='w', encoding='utf-8') as f:
+        f.write(dom.toprettyxml())

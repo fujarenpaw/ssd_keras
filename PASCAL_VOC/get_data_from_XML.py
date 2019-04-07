@@ -39,15 +39,19 @@ class XML_preprocessor(object):
 
     def _to_one_hot(self,name):
         one_hot_vector = [0] * self.num_classes
-        if name == 'aeroplane':
+        # if name == 'aeroplane':
+        #     one_hot_vector[0] = 1
+        # elif name == 'bicycle':
+        #     one_hot_vector[1] =
+        if name == 'jigglypuff':
             one_hot_vector[0] = 1
-        elif name == 'bicycle':
+        elif name == 'incineroar':
             one_hot_vector[1] = 1
-        elif name == 'bird':
+        elif name == 'bowser':
             one_hot_vector[2] = 1
-        elif name == 'boat':
+        elif name == 'donkey kong':
             one_hot_vector[3] = 1
-        elif name == 'bottle':
+        elif name == 'king k.rool':
             one_hot_vector[4] = 1
         elif name == 'bus':
             one_hot_vector[5] = 1
@@ -77,7 +81,7 @@ class XML_preprocessor(object):
             one_hot_vector[17] = 1
         elif name == 'train':
             one_hot_vector[18] = 1
-        elif name == 'tvmonitor':
+        elif name == 'character':
             one_hot_vector[19] = 1
         else:
             print('unknown label: %s' %name)
@@ -89,3 +93,8 @@ class XML_preprocessor(object):
 # data = XML_preprocessor('VOC2007/Annotations/').data
 # pickle.dump(data,open('VOC2007.p','wb'))
 
+## ここから下のコードを追加する
+import pickle
+data = XML_preprocessor(r'../dataSet\data\Annotations_char\\').data
+# pickle.dump(data, open('../ssbu.pkl','wb'))
+pickle.dump(data, open('../ssbu_char.pkl','wb'))
